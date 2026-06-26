@@ -1,0 +1,8 @@
+{
+    "name": "mundial2026/app",
+    "description": "Mundial 2026 website",
+    "type": "project",
+    "require": {
+        "php": "^7.4 || ^8.0"
+    }
+}
