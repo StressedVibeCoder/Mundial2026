@@ -1,5 +1,6 @@
 <?php
-require_once 'config.php';
+$page_title = 'Apagar Grupo - Mundial 2026';
+require_once 'includes/header.php';
 requer_admin();
 
 $mensagem = "";
@@ -22,20 +23,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-    <meta charset="UTF-8">
-    <title>Apagar Grupo - Mundial 2026</title>
-    <link rel="stylesheet" href="estilo.css">
-    <link href="https://fonts.googleapis.com/css2?family=Advent+Pro:wght@400;700&family=VT323&display=swap" rel="stylesheet">
-</head>
-<body>
-    <section class="cyberpunk black both">
     <h1 class="cyberpunk glitched">Apagar Grupo (e respetivas equipas e jogos)</h1>
-    <div>
-        <a href="index.php" style="--text:'V-8';padding:10px 20px;font-size:0.9rem">Voltar ao Início</a>
-    </div>
+    <?php require_once 'includes/nav.php'; ?>
 
     <?php if ($mensagem): ?>
         <p style="background:var(--green-color);color:#fff;padding:12px;border-radius:4px;margin-bottom:15px"><?= $mensagem ?></p>
@@ -51,6 +40,4 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </select>
         <button type="submit" class="cyberpunk red" style="--text:'D-2'">Apagar Grupo</button>
     </form>
-    </section>
-</body>
-</html>
+<?php require_once 'includes/footer.php'; ?>

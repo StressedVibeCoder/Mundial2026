@@ -1,1 +1,3 @@
 supabase.php
+.env
+vendor/
