@@ -1,11 +1,8 @@
 <?php
-require_once 'config.php';
+$page_title = 'Mundial 2026';
+require_once 'includes/header.php';
 
 $grupos = db()->select('grupos', '*', [], 'grupos');
-if (empty($grupos)) {
-    $grupos = db()->raw('GET', '/grupos?select=*&order=grupos');
-}
-error_log("Grupos: " . print_r($grupos, true));
 $jogos_raw = db()->select('jogo', '*', [], 'datahora');
 $jogos = [];
 foreach ($jogos_raw ?? [] as $j) {
@@ -16,16 +13,6 @@ foreach ($jogos_raw ?? [] as $j) {
     $jogos[] = $j;
 }
 ?>
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-    <meta charset="UTF-8">
-    <title>Mundial 2026</title>
-    <link href="https://fonts.googleapis.com/css2?family=Advent+Pro:wght@400;700&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="estilo.css">
-</head>
-<body>
-    <section class="cyberpunk black both">
     <h1 class="cyberpunk glitched">Mundial 2026</h1>
 
     <div style="text-align:right;margin-bottom:10px">
@@ -38,21 +25,7 @@ foreach ($jogos_raw ?? [] as $j) {
         <?php endif; ?>
     </div>
 
-    <div>
-        <a href="index.php" class="cyberpunk purple" style="--text:'M-0';padding:10px 15px;font-size:0.8rem">Início</a>
-        <?php if (eh_admin()): ?>
-            <a href="criar_grupo.php" class="cyberpunk green" style="--text:'C-1';padding:10px 10px;font-size:0.8rem">Criar Grupo</a>
-            <a href="criar_equipa.php" class="cyberpunk green" style="--text:'C-2';padding:10px 10px;font-size:0.8rem">Criar Equipa</a>
-            <a href="criar_utilizador.php" class="cyberpunk green" style="--text:'C-3';padding:10px 10px;font-size:0.8rem">Gerir Users</a>
-            <a href="registar_jogo.php" class="cyberpunk green" style="--text:'C-4';padding:10px 10px;font-size:0.8rem">Registar Jogo</a>
-            <a href="alterar_grupo.php" class="cyberpunk blue" style="--text:'A-1';padding:10px 10px;font-size:0.8rem">Alterar Grupo</a>
-            <a href="alterar_equipa.php" class="cyberpunk blue" style="--text:'A-2';padding:10px 10px;font-size:0.8rem">Alterar Equipa</a>
-            <a href="alterar_jogo.php" class="cyberpunk blue" style="--text:'A-3';padding:10px 10px;font-size:0.8rem">Alterar Jogo</a>
-            <a href="apagar_grupo.php" class="cyberpunk red" style="--text:'D-1';padding:10px 10px;font-size:0.8rem">Apagar Grupo</a>
-            <a href="apagar_equipa.php" class="cyberpunk red" style="--text:'D-2';padding:10px 10px;font-size:0.8rem">Apagar Equipa</a>
-            <a href="apagar_jogo.php" class="cyberpunk red" style="--text:'D-3';padding:10px 10px;font-size:0.8rem">Apagar Jogo</a>
-        <?php endif; ?>
-    </div>
+    <?php require_once 'includes/nav.php'; ?>
 
     <h2 class="cyberpunk">Grupos e Equipas</h2>
 
@@ -63,10 +36,6 @@ foreach ($jogos_raw ?? [] as $j) {
                 <ul style="list-style:none;margin:0;padding:0">
                     <?php
                     $equipas = db()->select('equipas', 'id_equipa, pais', ['grupos_id_grupo' => $grupo['id_grupo']], 'pais');
-if (empty($equipas)) {
-    $equipas = db()->raw('GET', "/equipas?select=id_equipa,pais&grupos_id_grupo=eq.{$grupo['id_grupo']}&order=pais");
-}
-error_log("Equipas grupo {$grupo['id_grupo']}: " . print_r($equipas, true));
                     foreach ($equipas ?? [] as $equipa): ?>
                         <li style="padding:8px 12px;border-bottom:1px solid #333"><?= $equipa['pais'] ?></li>
                     <?php endforeach; ?>
@@ -95,6 +64,4 @@ error_log("Equipas grupo {$grupo['id_grupo']}: " . print_r($equipas, true));
             </tr>
         <?php endforeach; ?>
     </table>
-    </section>
-</body>
-</html>
+<?php require_once 'includes/footer.php'; ?>

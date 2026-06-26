@@ -1,15 +1,11 @@
 <?php
-require_once 'config.php';
-
-if (esta_logado()) {
-    header("Location: index.php");
-    exit;
-}
+$page_title = 'Login - Mundial 2026';
+require_once 'includes/auth_header.php';
 
 $erro = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $input = $_POST['username']; // pode ser username ou email
+    $input = $_POST['username'];
     $password = $_POST['password'];
 
     $user = db()->selectOne('utilizadores', '*', ['nome_utilizador' => $input]);
@@ -34,16 +30,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="pt">
-<head>
-    <meta charset="UTF-8">
-    <title>Login - Mundial 2026</title>
-    <link href="https://fonts.googleapis.com/css2?family=Advent+Pro:wght@400;700&family=VT323&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="estilo.css">
-</head>
-<body>
-    <section class="cyberpunk black both">
     <h1 class="cyberpunk glitched">Login</h1>
     <div>
         <a href="index.php" style="--text:'V-1';padding:10px 20px;font-size:0.9rem">Voltar ao Início</a>
@@ -63,6 +49,4 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <button type="submit" class="cyberpunk blue" style="--text:'E-1'">Entrar</button>
     </form>
-    </section>
-</body>
-</html>
+<?php require_once 'includes/footer.php'; ?>
