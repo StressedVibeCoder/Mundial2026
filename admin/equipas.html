@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerir Equipas - Mundial 2026</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/forms.css">
+<link rel="stylesheet" href="../assets/css/typography.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="sidebar-logo">Mundial 2026</div>
+<nav class="sidebar-nav" id="sidebar-nav"></nav>
+</aside>
+<div class="main-wrapper">
+<header class="topbar">
+<div></div>
+<div class="topbar-user" id="topbar-user"></div>
+</header>
+<main class="content">
+<h1>Gerir Equipas</h1>
+<div id="mensagem" class="msg" style="display:none"></div>
+
+<div class="card" style="max-width:500px;margin-bottom:20px">
+<div class="card-header">Criar Nova Equipa</div>
+<div class="card-body">
+<form id="criar-form">
+<div class="form-group"><label>País:</label><input type="text" id="cria-pais" required></div>
+<div class="form-group"><label>Grupo:</label><select id="cria-grupo" required><option value="">Selecione</option></select></div>
+<button type="submit" class="btn-success">Criar Equipa</button>
+</form>
+</div>
+</div>
+
+<div class="card" style="max-width:500px;margin-bottom:20px">
+<div class="card-header">Editar Equipa</div>
+<div class="card-body">
+<form id="editar-form">
+<input type="hidden" id="edit-id">
+<div class="form-group"><label>Equipa:</label><select id="equipa-select" required><option value="">Selecione</option></select></div>
+<div class="form-group"><label>País:</label><input type="text" id="edit-pais" required></div>
+<div class="form-group"><label>Grupo:</label><select id="edit-grupo" required><option value="">Selecione</option></select></div>
+<button type="submit" class="btn-primary">Alterar</button>
+</form>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">Equipas Existentes</div>
+<table>
+<thead><tr><th>País</th><th>Grupo</th><th>Ações</th></tr></thead>
+<tbody id="equipas-lista"></tbody>
+</table>
+</div>
+</main>
+</div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<script src="../assets/js/supabase.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/utils.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+if (!ehAdmin()) location.href = '../index.html';
+renderLayout();
+
+const msgEl = document.getElementById('mensagem');
+function mostrarMsg(texto, tipo) {
+  msgEl.textContent = texto; msgEl.className = 'msg msg-' + tipo; msgEl.style.display = 'block';
+}
+
+async function carregar() {
+  const grupos = await supabaseSelect('grupos', '*', {}, 'grupos');
+  const grupoOpts = (grupos || []).map(g => '<option value="' + g.id_grupo + '">Grupo ' + esc(g.grupos) + '</option>').join('');
+
+  document.getElementById('cria-grupo').innerHTML = '<option value="">Selecione</option>' + grupoOpts;
+  document.getElementById('edit-grupo').innerHTML = '<option value="">Selecione</option>' + grupoOpts;
+
+  const equipasRaw = await supabaseSelect('equipas', '*', {}, 'pais');
+  const equipas = [];
+  for (const e of equipasRaw || []) {
+    const g = await supabaseSelectOne('grupos', 'grupos', { id_grupo: e.grupos_id_grupo });
+    e.grupos = (g && g.grupos) || '?';
+    equipas.push(e);
+  }
+
+  const sel = document.getElementById('equipa-select');
+  sel.innerHTML = '<option value="">Selecione</option>' +
+    equipas.map(e => '<option value="' + e.id_equipa + '" data-grupo="' + e.grupos_id_grupo + '" data-pais="' + esc(e.pais) + '">' + esc(e.pais) + ' (Grupo ' + esc(e.grupos) + ')</option>').join('');
+  sel.onchange = function() {
+    const opt = sel.options[sel.selectedIndex];
+    if (opt.value) {
+      document.getElementById('edit-id').value = opt.value;
+      document.getElementById('edit-pais').value = opt.dataset.pais;
+      document.getElementById('edit-grupo').value = opt.dataset.grupo;
+    }
+  };
+
+  document.getElementById('equipas-lista').innerHTML = equipas.map(e =>
+    '<tr><td>' + esc(e.pais) + '</td><td>Grupo ' + esc(e.grupos) + '</td>' +
+    '<td><button class="btn-sm btn-danger delete-equipa" data-id="' + e.id_equipa + '">Apagar</button></td></tr>'
+  ).join('');
+
+  document.querySelectorAll('.delete-equipa').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Apagar equipa e jogos?')) return;
+    const id = parseInt(b.dataset.id);
+    await supabaseDelete('jogo', { equipa1: id });
+    await supabaseDelete('jogo', { equipa2: id });
+    await supabaseDelete('equipas', { id_equipa: id });
+    mostrarMsg('Equipa apagada!', 'success');
+    carregar();
+  }));
+}
+
+document.getElementById('criar-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pais = document.getElementById('cria-pais').value.trim();
+  const grupoId = parseInt(document.getElementById('cria-grupo').value);
+  if (!pais || !grupoId) return;
+  const r = await supabaseInsert('equipas', { pais, grupos_id_grupo: grupoId });
+  if (r) { mostrarMsg('Equipa ' + pais + ' criada!', 'success'); document.getElementById('cria-pais').value = ''; carregar(); }
+  else mostrarMsg('Já existe a equipa ' + pais + '.', 'error');
+});
+
+document.getElementById('editar-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = parseInt(document.getElementById('edit-id').value);
+  const pais = document.getElementById('edit-pais').value.trim();
+  const grupoId = parseInt(document.getElementById('edit-grupo').value);
+  if (!id || !pais || !grupoId) return;
+  const r = await supabaseUpdate('equipas', { pais, grupos_id_grupo: grupoId }, { id_equipa: id });
+  if (r) { mostrarMsg('Equipa alterada!', 'success'); carregar(); }
+  else mostrarMsg('Já existe equipa com esse nome.', 'error');
+});
+
+carregar();
+</script>
+</body>
+</html>

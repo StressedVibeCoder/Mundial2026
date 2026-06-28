@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerir Grupos - Mundial 2026</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/forms.css">
+<link rel="stylesheet" href="../assets/css/typography.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="sidebar-logo">Mundial 2026</div>
+<nav class="sidebar-nav" id="sidebar-nav"></nav>
+</aside>
+<div class="main-wrapper">
+<header class="topbar">
+<div></div>
+<div class="topbar-user" id="topbar-user"></div>
+</header>
+<main class="content">
+<h1>Gerir Grupos</h1>
+<div id="mensagem" class="msg" style="display:none"></div>
+
+<div class="card" style="max-width:500px;margin-bottom:20px">
+<div class="card-header">Criar Novo Grupo</div>
+<div class="card-body">
+<form id="criar-form">
+<div class="form-group"><label>Letra do Grupo:</label><input type="text" id="criar-nome" maxlength="1" required></div>
+<button type="submit" class="btn-success">Criar Grupo</button>
+</form>
+</div>
+</div>
+
+<div class="card" style="max-width:500px;margin-bottom:20px">
+<div class="card-header">Editar Grupo</div>
+<div class="card-body">
+<form id="editar-form">
+<div class="form-group"><label>Grupo:</label><select id="edit-select" required></select></div>
+<div class="form-group"><label>Nova Letra:</label><input type="text" id="edit-nome" maxlength="1" required></div>
+<button type="submit" class="btn-primary">Alterar Grupo</button>
+</form>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">Grupos Existentes</div>
+<table>
+<thead><tr><th>Grupo</th><th>Ações</th></tr></thead>
+<tbody id="grupos-lista"></tbody>
+</table>
+</div>
+</main>
+</div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<script src="../assets/js/supabase.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/utils.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+if (!ehAdmin()) location.href = '../index.html';
+renderLayout();
+
+const msgEl = document.getElementById('mensagem');
+function mostrarMsg(texto, tipo) {
+  msgEl.textContent = texto;
+  msgEl.className = 'msg msg-' + tipo;
+  msgEl.style.display = 'block';
+}
+
+async function carregar() {
+  const grupos = await supabaseSelect('grupos', '*', {}, 'grupos');
+  document.getElementById('grupos-lista').innerHTML = (grupos || []).map(g =>
+    '<tr><td>' + esc(g.grupos) + '</td>' +
+    '<td><button class="btn-sm btn-primary edit-grupo" data-id="' + g.id_grupo + '" data-nome="' + esc(g.grupos) + '">Editar</button> ' +
+    '<button class="btn-sm btn-danger delete-grupo" data-id="' + g.id_grupo + '">Apagar</button></td></tr>'
+  ).join('');
+
+  document.querySelectorAll('.edit-grupo').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('edit-select').value = b.dataset.id;
+    document.getElementById('edit-nome').value = b.dataset.nome;
+  }));
+
+  const sel = document.getElementById('edit-select');
+  sel.innerHTML = '<option value="">— Selecionar —</option>' + (grupos || []).map(g =>
+    '<option value="' + g.id_grupo + '">Grupo ' + esc(g.grupos) + '</option>'
+  ).join('');
+  sel.addEventListener('change', () => {
+    const g = (grupos || []).find(x => x.id_grupo == sel.value);
+    document.getElementById('edit-nome').value = g ? g.grupos : '';
+  });
+
+  document.querySelectorAll('.delete-grupo').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Apagar este grupo?')) return;
+    await supabaseDelete('grupos', { id_grupo: parseInt(b.dataset.id) });
+    mostrarMsg('Grupo apagado!', 'success');
+    carregar();
+  }));
+}
+
+document.getElementById('criar-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nome = document.getElementById('criar-nome').value.trim();
+  if (!nome) return;
+  const r = await supabaseInsert('grupos', { grupos: nome });
+  if (r) { mostrarMsg('Grupo ' + nome + ' criado!', 'success'); document.getElementById('criar-nome').value = ''; carregar(); }
+  else mostrarMsg('Já existe o grupo ' + nome + '.', 'error');
+});
+
+document.getElementById('editar-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = parseInt(document.getElementById('edit-select').value);
+  const nome = document.getElementById('edit-nome').value.trim();
+  if (!id || !nome) return;
+  const r = await supabaseUpdate('grupos', { grupos: nome }, { id_grupo: id });
+  if (r) { mostrarMsg('Grupo alterado para ' + nome + '!', 'success'); carregar(); }
+  else mostrarMsg('Erro ao alterar.', 'error');
+});
+
+carregar();
+</script>
+</body>
+</html>

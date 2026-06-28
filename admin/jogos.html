@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerir Jogos - Mundial 2026</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/forms.css">
+<link rel="stylesheet" href="../assets/css/typography.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="sidebar-logo">Mundial 2026</div>
+<nav class="sidebar-nav" id="sidebar-nav"></nav>
+</aside>
+<div class="main-wrapper">
+<header class="topbar">
+<div></div>
+<div class="topbar-user" id="topbar-user"></div>
+</header>
+<main class="content">
+<h1>Gerir Jogos</h1>
+<div id="mensagem" class="msg" style="display:none"></div>
+
+<div class="card" style="max-width:600px;margin-bottom:20px">
+<div class="card-header">Registar Novo Jogo</div>
+<div class="card-body">
+<form id="criar-form">
+<div class="form-row">
+<div class="form-group"><label>Data/Hora:</label><input type="datetime-local" id="cria-datahora" required></div>
+<div class="form-group"><label>Local:</label><input type="text" id="cria-local" required></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Equipa 1:</label><select id="cria-e1" class="eq" required><option value="">Selecione</option></select></div>
+<div class="form-group"><label>Golos:</label><input type="number" id="cria-g1" min="0" value="0"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Equipa 2:</label><select id="cria-e2" class="eq" required><option value="">Selecione</option></select></div>
+<div class="form-group"><label>Golos:</label><input type="number" id="cria-g2" min="0" value="0"></div>
+</div>
+<div class="form-group"><label><input type="checkbox" id="cria-realizado"> Jogo já realizado (calcula pontos)</label></div>
+<button type="submit" class="btn-success">Registar Jogo</button>
+</form>
+</div>
+</div>
+
+<div class="card" style="max-width:600px;margin-bottom:20px">
+<div class="card-header">Editar Jogo</div>
+<div class="card-body">
+<div class="form-group"><label>Jogo:</label><select id="jogo-select" required><option value="">Selecione</option></select></div>
+<form id="editar-form" style="margin-top:16px">
+<input type="hidden" id="edit-id">
+<div class="form-row">
+<div class="form-group"><label>Data/Hora:</label><input type="datetime-local" id="edit-datahora" required></div>
+<div class="form-group"><label>Local:</label><input type="text" id="edit-local" required></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Equipa 1:</label><select id="edit-e1" class="eq" required><option value="">Selecione</option></select></div>
+<div class="form-group"><label>Golos:</label><input type="number" id="edit-g1" min="0" value="0"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Equipa 2:</label><select id="edit-e2" class="eq" required><option value="">Selecione</option></select></div>
+<div class="form-group"><label>Golos:</label><input type="number" id="edit-g2" min="0" value="0"></div>
+</div>
+<div class="form-group"><label><input type="checkbox" id="edit-realizado"> Jogo realizado (calcula pontos)</label></div>
+<button type="submit" class="btn-primary">Alterar</button>
+</form>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">Jogos Existentes</div>
+<table>
+<thead><tr><th>Data/Hora</th><th>Local</th><th>Equipa 1</th><th>Equipa 2</th><th>Resultado</th><th>Realizado</th><th>Ações</th></tr></thead>
+<tbody id="jogos-lista"></tbody>
+</table>
+</div>
+</main>
+</div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<script src="../assets/js/supabase.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/utils.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+if (!ehAdmin()) location.href = '../index.html';
+renderLayout();
+
+const msgEl = document.getElementById('mensagem');
+function mostrarMsg(texto, tipo) {
+  msgEl.textContent = texto; msgEl.className = 'msg msg-' + tipo; msgEl.style.display = 'block';
+}
+
+async function preencherEquipas() {
+  const equipas = await supabaseSelect('equipas', 'id_equipa, pais', {}, 'pais');
+  const opts = '<option value="">Selecione</option>' + (equipas || []).map(e => '<option value="' + e.id_equipa + '">' + esc(e.pais) + '</option>').join('');
+  document.querySelectorAll('.eq').forEach(el => { el.innerHTML = opts; });
+}
+preencherEquipas();
+
+async function carregar() {
+  const jogosRaw = await supabaseSelect('jogo', '*', {}, 'datahora');
+  const jogos = [];
+  for (const j of jogosRaw || []) {
+    const e1 = await supabaseSelectOne('equipas', 'pais', { id_equipa: j.equipa1 });
+    const e2 = await supabaseSelectOne('equipas', 'pais', { id_equipa: j.equipa2 });
+    j.equipa1_nome = (e1 && e1.pais) || '?';
+    j.equipa2_nome = (e2 && e2.pais) || '?';
+    jogos.push(j);
+  }
+
+  const sel = document.getElementById('jogo-select');
+  sel.innerHTML = '<option value="">Selecione</option>' +
+    jogos.map(j =>
+      '<option value="' + j.id_jogo + '" data-datahora="' + j.datahora + '" data-local="' + esc(j.local) + '" data-e1="' + j.equipa1 + '" data-e2="' + j.equipa2 + '" data-g1="' + j.golequipa1 + '" data-g2="' + j.golequipa2 + '" data-realizado="' + j.realizado + '">' +
+      esc(j.equipa1_nome) + ' ' + (j.realizado ? j.golequipa1 + '-' + j.golequipa2 : '---') + ' ' + esc(j.equipa2_nome) + ' (' + formatDate(j.datahora) + ')</option>'
+    ).join('');
+
+  document.getElementById('jogos-lista').innerHTML = jogos.map(j =>
+    '<tr><td>' + formatDate(j.datahora) + '</td><td>' + esc(j.local) + '</td><td>' + esc(j.equipa1_nome) + '</td><td>' + esc(j.equipa2_nome) + '</td><td><strong>' + (j.realizado ? j.golequipa1 + '-' + j.golequipa2 : '---') + '</strong></td><td>' + (j.realizado ? 'Sim' : 'Não') + '</td>' +
+    '<td><button class="btn-sm btn-danger delete-jogo" data-id="' + j.id_jogo + '">Apagar</button></td></tr>'
+  ).join('');
+
+  sel.onchange = function() {
+    const o = sel.options[sel.selectedIndex];
+    if (!o.value) return;
+    document.getElementById('edit-id').value = o.value;
+    document.getElementById('edit-datahora').value = o.dataset.datahora ? o.dataset.datahora.replace(' ', 'T') : '';
+    document.getElementById('edit-local').value = o.dataset.local;
+    document.getElementById('edit-e1').value = o.dataset.e1;
+    document.getElementById('edit-e2').value = o.dataset.e2;
+    document.getElementById('edit-g1').value = o.dataset.g1;
+    document.getElementById('edit-g2').value = o.dataset.g2;
+    document.getElementById('edit-realizado').checked = o.dataset.realizado === 'true';
+  };
+
+  document.querySelectorAll('.delete-jogo').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Apagar jogo?')) return;
+    await supabaseDelete('jogo', { id_jogo: parseInt(b.dataset.id) });
+    mostrarMsg('Jogo apagado!', 'success');
+    carregar();
+  }));
+}
+
+async function calcPontos(idJogo) {
+  const jogo = await supabaseSelectOne('jogo', '*', { id_jogo: idJogo });
+  if (!jogo) return;
+  const palpites = await supabaseSelect('palpites', 'id_palpite, golo_equipa1, golo_equipa2', { id_jogo: idJogo });
+  for (const p of palpites || []) {
+    const pts = calcularPontos(p, jogo);
+    await supabaseUpdate('palpites', { pontos: pts }, { id_palpite: p.id_palpite });
+  }
+}
+
+const handlerForm = (prefix) => async (e) => {
+  e.preventDefault();
+  const get = id => document.getElementById(prefix + '-' + id);
+  const data = {
+    datahora: get('datahora').value,
+    local: get('local').value,
+    equipa1: parseInt(get('e1').value),
+    equipa2: parseInt(get('e2').value),
+    golequipa1: parseInt(get('g1').value) || 0,
+    golequipa2: parseInt(get('g2').value) || 0,
+    realizado: get('realizado').checked,
+  };
+  if (data.equipa1 === data.equipa2) { mostrarMsg('Equipas não podem ser iguais.', 'error'); return; }
+  if (!data.datahora || !data.local || !data.equipa1 || !data.equipa2) { mostrarMsg('Preencha tudo.', 'error'); return; }
+
+  if (prefix === 'cria') {
+    const r = await supabaseInsert('jogo', data);
+    if (!r) { mostrarMsg('Já existe jogo nesta data/hora.', 'error'); return; }
+    mostrarMsg('Jogo registado!', 'success');
+    if (data.realizado && r[0]) await calcPontos(r[0].id_jogo);
+    document.getElementById('criar-form').reset();
+    preencherEquipas();
+  } else {
+    const id = parseInt(get('id').value);
+    if (!id) return;
+    const r = await supabaseUpdate('jogo', data, { id_jogo: id });
+    if (!r) { mostrarMsg('Erro ao alterar.', 'error'); return; }
+    let msg = 'Jogo alterado!';
+    if (data.realizado) { await calcPontos(id); msg += ' Pontos calculados!'; }
+    mostrarMsg(msg, 'success');
+  }
+  carregar();
+};
+
+document.getElementById('criar-form').addEventListener('submit', handlerForm('cria'));
+document.getElementById('editar-form').addEventListener('submit', handlerForm('edit'));
+
+carregar();
+</script>
+</body>
+</html>

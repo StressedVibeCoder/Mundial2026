@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerir Utilizadores - Mundial 2026</title>
+<link rel="stylesheet" href="../assets/css/base.css">
+<link rel="stylesheet" href="../assets/css/forms.css">
+<link rel="stylesheet" href="../assets/css/typography.css">
+<link rel="stylesheet" href="../assets/css/components.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="sidebar-logo">Mundial 2026</div>
+<nav class="sidebar-nav" id="sidebar-nav"></nav>
+</aside>
+<div class="main-wrapper">
+<header class="topbar">
+<div></div>
+<div class="topbar-user" id="topbar-user"></div>
+</header>
+<main class="content">
+<h1>Gerir Utilizadores</h1>
+<div id="mensagem" class="msg" style="display:none"></div>
+
+<div class="card" style="max-width:500px;margin-bottom:24px">
+<div class="card-header">Criar Novo Utilizador</div>
+<div class="card-body">
+<form id="criar-form">
+<div class="form-group"><label>Username:</label><input type="text" id="cria-username" required></div>
+<div class="form-group"><label>Email:</label><input type="email" id="cria-email" required></div>
+<div class="form-group"><label>Password:</label><input type="password" id="cria-password" required></div>
+      <button type="submit" class="btn-success">Criar Utilizador</button>
+</form>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">Utilizadores Existentes</div>
+<table>
+<thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Tipo</th><th>Ações</th></tr></thead>
+<tbody id="users-lista"></tbody>
+</table>
+</div>
+</main>
+</div>
+</div>
+
+<script src="../assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<script src="../assets/js/supabase.js"></script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/utils.js"></script>
+<script src="../assets/js/layout.js"></script>
+<script>
+if (!ehAdmin()) location.href = '../index.html';
+const session = getSession();
+renderLayout();
+
+const msgEl = document.getElementById('mensagem');
+function mostrarMsg(texto, tipo) {
+  msgEl.textContent = texto; msgEl.className = 'msg msg-' + tipo; msgEl.style.display = 'block';
+}
+
+async function carregar() {
+  const users = await supabaseSelect('utilizadores', '*', {}, 'idutilizadores');
+  document.getElementById('users-lista').innerHTML = (users || []).map(u =>
+    '<tr><td>' + u.idutilizadores + '</td><td>' + esc(u.nome_utilizador) + '</td><td>' + esc(u.email) + '</td><td>' + (u.administrador ? 'Admin' : 'User') + '</td>' +
+    '<td>' + (u.administrador
+      ? (u.idutilizadores !== session.user_id
+        ? '<form class="user-action" data-id="' + u.idutilizadores + '" data-action="rebaixar"><button type="submit" class="btn-sm btn-danger">Rebaixar</button></form>'
+        : '<em>(tu)</em>')
+      : '<form class="user-action" data-id="' + u.idutilizadores + '" data-action="promover"><button type="submit" class="btn-sm btn-primary">Promover</button></form>'
+    ) + '</td></tr>'
+  ).join('');
+
+  document.querySelectorAll('.user-action').forEach(f => f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = parseInt(f.dataset.id);
+    const action = f.dataset.action;
+    if (action === 'promover') {
+      if (!confirm('Promover a admin?')) return;
+      const r = await supabaseUpdate('utilizadores', { administrador: true }, { idutilizadores: id });
+      mostrarMsg(r ? 'Promovido a admin!' : 'Erro.', 'success');
+    } else {
+      if (!confirm('Rebaixar para user?')) return;
+      const r = await supabaseUpdate('utilizadores', { administrador: false }, { idutilizadores: id });
+      mostrarMsg(r ? 'Rebaixado a user.' : 'Erro.', 'success');
+    }
+    carregar();
+  }));
+}
+
+document.getElementById('criar-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('cria-username').value.trim();
+  const email = document.getElementById('cria-email').value.trim();
+  const password = document.getElementById('cria-password').value;
+  if (!username || !email || !password) { mostrarMsg('Preencha tudo.', 'error'); return; }
+  const hash = bcrypt.hashSync(password, 10);
+  const r = await supabaseInsert('utilizadores', { nome_utilizador: username, email, senha: hash, administrador: false });
+  if (r) { mostrarMsg('User ' + username + ' criado!', 'success'); document.getElementById('criar-form').reset(); carregar(); }
+  else mostrarMsg('Username ou email já existem.', 'error');
+});
+
+carregar();
+</script>
+</body>
+</html>

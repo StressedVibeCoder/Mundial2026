@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mundial 2026</title>
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/forms.css">
+<link rel="stylesheet" href="assets/css/typography.css">
+<link rel="stylesheet" href="assets/css/components.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="sidebar-logo">Mundial 2026</div>
+<nav class="sidebar-nav" id="sidebar-nav"></nav>
+</aside>
+<div class="main-wrapper">
+<header class="topbar">
+<div></div>
+<div class="topbar-user" id="topbar-user"></div>
+</header>
+<main class="content">
+<h1>Mundial 2026</h1>
+<div id="fav-filter" style="margin-bottom:16px"></div>
+<h2>Grupos e Equipas</h2>
+<div class="grid-4" id="grupos-list"></div>
+<h2>Jogos Realizados</h2>
+<div class="card">
+<table>
+<thead><tr><th>Data/Hora</th><th>Local</th><th>Equipa 1</th><th>Resultado</th><th>Equipa 2</th></tr></thead>
+<tbody id="jogos-table-body"></tbody>
+</table>
+</div>
+</main>
+</div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<script src="assets/js/supabase.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+renderLayout();
+
+const params = new URLSearchParams(location.search);
+const soFavoritos = params.get('fav') === '1';
+
+(async () => {
+  const logado = estaLogado(), admin = ehAdmin(), session = getSession();
+
+  const favEl = document.getElementById('fav-filter');
+  if (favEl && logado && !admin) {
+    favEl.innerHTML =
+      '<a href="?fav=1" class="btn-sm ' + (soFavoritos ? 'btn-primary' : 'btn-sm') + '" style="text-decoration:none">Só Favoritos</a> ' +
+      '<a href="?" class="btn-sm ' + (!soFavoritos ? 'btn-primary' : 'btn-sm') + '" style="text-decoration:none">Todos</a>';
+  }
+
+  let favIds = [];
+  if (logado && soFavoritos && session) {
+    const favs = await supabaseSelect('favoritos', 'id_equipa', { id_utilizador: session.user_id });
+    favIds = (favs || []).map(f => f.id_equipa);
+  }
+
+  const gruposRaw = await supabaseSelect('grupos', '*', {}, 'grupos');
+  const grupos = [];
+  for (const g of gruposRaw || []) {
+    let equipas = await supabaseSelect('equipas', 'id_equipa, pais', { grupos_id_grupo: g.id_grupo }, 'pais');
+    if (soFavoritos && favIds.length) equipas = (equipas || []).filter(e => favIds.includes(e.id_equipa));
+    if (!equipas || !equipas.length) continue;
+    g.equipas = equipas;
+    grupos.push(g);
+  }
+
+  const jogosRaw = await supabaseSelect('jogo', '*', {}, 'datahora');
+  const jogos = [];
+  for (const j of jogosRaw || []) {
+    if (soFavoritos && favIds.length) {
+      if (!favIds.includes(j.equipa1) && !favIds.includes(j.equipa2)) continue;
+    }
+    const e1 = await supabaseSelectOne('equipas', 'pais', { id_equipa: j.equipa1 });
+    const e2 = await supabaseSelectOne('equipas', 'pais', { id_equipa: j.equipa2 });
+    j.equipa1_nome = (e1 && e1.pais) || '?';
+    j.equipa2_nome = (e2 && e2.pais) || '?';
+    jogos.push(j);
+  }
+
+  document.getElementById('grupos-list').innerHTML = grupos.map(g =>
+    '<div class="group-card"><div class="group-card-header">Grupo ' + esc(g.grupos) + '</div><ul>' +
+    (g.equipas || []).map(e => '<li>' + esc(e.pais) + '</li>').join('') + '</ul></div>'
+  ).join('');
+
+  document.getElementById('jogos-table-body').innerHTML = jogos.map(j =>
+    '<tr><td>' + formatDate(j.datahora) + '</td><td>' + esc(j.local) + '</td><td>' + esc(j.equipa1_nome) + '</td>' +
+    '<td><strong>' + (j.realizado ? j.golequipa1 + ' - ' + j.golequipa2 : '---') + '</strong></td><td>' + esc(j.equipa2_nome) + '</td></tr>'
+  ).join('');
+})();
+</script>
+</body>
+</html>

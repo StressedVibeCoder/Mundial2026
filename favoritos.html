@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Favoritos - Mundial 2026</title>
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/forms.css">
+<link rel="stylesheet" href="assets/css/typography.css">
+<link rel="stylesheet" href="assets/css/components.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="sidebar-logo">Mundial 2026</div>
+<nav class="sidebar-nav" id="sidebar-nav"></nav>
+</aside>
+<div class="main-wrapper">
+<header class="topbar">
+<div></div>
+<div class="topbar-user" id="topbar-user"></div>
+</header>
+<main class="content">
+<h1>As Minhas Equipas Favoritas</h1>
+<div id="mensagem" class="msg" style="display:none"></div>
+<div class="grid-4" id="favoritos-grid"></div>
+</main>
+</div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<script src="assets/js/supabase.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+if (!estaLogado()) redirectLogin();
+if (ehAdmin()) location.href = 'index.html';
+const session = getSession();
+renderLayout();
+
+const msgEl = document.getElementById('mensagem');
+
+(async () => {
+  const favoritos = await supabaseSelect('favoritos', 'id_equipa', { id_utilizador: session.user_id });
+  const favIds = (favoritos || []).map(f => f.id_equipa);
+  const grupos = await supabaseSelect('grupos', '*', {}, 'grupos');
+
+  let html = '';
+  for (const grupo of grupos || []) {
+    const equipas = await supabaseSelect('equipas', '*', { grupos_id_grupo: grupo.id_grupo }, 'pais');
+    html += '<div class="group-card"><div class="group-card-header">Grupo ' + esc(grupo.grupos) + '</div><ul>' +
+      (equipas || []).map(e => {
+        const seguida = favIds.includes(e.id_equipa);
+        return '<li style="display:flex;justify-content:space-between;align-items:center">' +
+          '<span>' + esc(e.pais) + '</span>' +
+          '<button class="btn-sm ' + (seguida ? 'btn-danger' : 'btn-primary') + '" data-equipa-id="' + e.id_equipa + '">' +
+          (seguida ? 'Remover' : 'Seguir') + '</button></li>';
+      }).join('') + '</ul></div>';
+  }
+  document.getElementById('favoritos-grid').innerHTML = html;
+
+  document.querySelectorAll('[data-equipa-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const equipaId = parseInt(btn.dataset.equipaId);
+      const jaSegue = await supabaseSelectOne('favoritos', '*', { id_utilizador: session.user_id, id_equipa: equipaId });
+      if (jaSegue) {
+        await supabaseDelete('favoritos', { id_favorito: jaSegue.id_favorito });
+        msgEl.textContent = 'Equipa removida dos favoritos.';
+      } else {
+        await supabaseInsert('favoritos', { id_utilizador: session.user_id, id_equipa: equipaId });
+        msgEl.textContent = 'Equipa adicionada aos favoritos!';
+      }
+      msgEl.className = 'msg msg-success';
+      msgEl.style.display = 'block';
+      setTimeout(() => location.reload(), 300);
+    });
+  });
+})();
+</script>
+</body>
+</html>

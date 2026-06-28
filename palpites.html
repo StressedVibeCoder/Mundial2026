@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palpites - Mundial 2026</title>
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/forms.css">
+<link rel="stylesheet" href="assets/css/typography.css">
+<link rel="stylesheet" href="assets/css/components.css">
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="sidebar-logo">Mundial 2026</div>
+<nav class="sidebar-nav" id="sidebar-nav"></nav>
+</aside>
+<div class="main-wrapper">
+<header class="topbar">
+<div></div>
+<div class="topbar-user" id="topbar-user"></div>
+</header>
+<main class="content">
+<h1>Os Meus Palpites</h1>
+<div id="mensagem" class="msg" style="display:none"></div>
+<div class="card">
+<table>
+<thead><tr><th>Data/Hora</th><th>Local</th><th>Equipa 1</th><th>Equipa 2</th><th>Resultado</th><th>Meu Palpite</th><th>Pontos</th><th></th></tr></thead>
+<tbody id="palpites-table-body"></tbody>
+</table>
+</div>
+</main>
+</div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<script src="assets/js/supabase.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/layout.js"></script>
+<script>
+if (!estaLogado()) redirectLogin();
+const podePalpitar = !ehAdmin();
+const session = getSession();
+renderLayout();
+
+const msgEl = document.getElementById('mensagem');
+
+(async () => {
+  const jogosRaw = await supabaseSelect('jogo', '*', {}, 'datahora');
+  const jogos = [];
+  for (const j of jogosRaw || []) {
+    const e1 = await supabaseSelectOne('equipas', 'pais', { id_equipa: j.equipa1 });
+    const e2 = await supabaseSelectOne('equipas', 'pais', { id_equipa: j.equipa2 });
+    j.equipa1_nome = (e1 && e1.pais) || '?';
+    j.equipa2_nome = (e2 && e2.pais) || '?';
+    if (session) {
+      j.meu_palpite = await supabaseSelectOne('palpites', '*', { id_utilizador: session.user_id, id_jogo: j.id_jogo });
+    }
+    jogos.push(j);
+  }
+
+  document.getElementById('palpites-table-body').innerHTML = jogos.map(j =>
+    '<tr>' +
+    '<td>' + formatDate(j.datahora) + '</td>' +
+    '<td>' + esc(j.local) + '</td>' +
+    '<td>' + esc(j.equipa1_nome) + '</td>' +
+    '<td>' + esc(j.equipa2_nome) + '</td>' +
+    '<td>' + (j.realizado ? '<strong>' + j.golequipa1 + ' - ' + j.golequipa2 + '</strong>' : '<em>--</em>') + '</td>' +
+    '<td>' + (j.meu_palpite ? j.meu_palpite.golo_equipa1 + ' - ' + j.meu_palpite.golo_equipa2 : '<em>---</em>') + '</td>' +
+    '<td>' + (j.realizado && j.meu_palpite ? (j.meu_palpite.pontos || 0) : '<em>--</em>') + '</td>' +
+    '<td>' + (!j.realizado && podePalpitar
+      ? '<form class="palpite-form" data-id="' + j.id_jogo + '">' +
+        '<input type="number" name="g1" min="0" value="' + (j.meu_palpite ? j.meu_palpite.golo_equipa1 : 0) + '" style="width:50px" required> - ' +
+        '<input type="number" name="g2" min="0" value="' + (j.meu_palpite ? j.meu_palpite.golo_equipa2 : 0) + '" style="width:50px" required> ' +
+        '<button type="submit" class="btn-sm btn-primary">' + (j.meu_palpite ? 'Atualizar' : 'Palpitar') + '</button></form>'
+      : !j.realizado && !podePalpitar ? '<em style="color:#94a3b8">(admin)</em>' : '') + '</td>' +
+    '</tr>'
+  ).join('');
+
+  document.querySelectorAll('.palpite-form').forEach(f => {
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = parseInt(f.dataset.id);
+      const g1 = parseInt(f.querySelector('[name="g1"]').value);
+      const g2 = parseInt(f.querySelector('[name="g2"]').value);
+
+      const jogo = await supabaseSelectOne('jogo', '*', { id_jogo: id });
+      if (!jogo || jogo.realizado) {
+        msgEl.textContent = 'Este jogo já foi realizado.';
+        msgEl.className = 'msg msg-error';
+        msgEl.style.display = 'block';
+        return;
+      }
+
+      const existente = await supabaseSelectOne('palpites', '*', { id_utilizador: session.user_id, id_jogo: id });
+      if (existente) {
+        await supabaseUpdate('palpites', { golo_equipa1: g1, golo_equipa2: g2 }, { id_palpite: existente.id_palpite });
+      } else {
+        await supabaseInsert('palpites', { id_utilizador: session.user_id, id_jogo: id, golo_equipa1: g1, golo_equipa2: g2 });
+      }
+      setTimeout(() => location.reload(), 300);
+    });
+  });
+})();
+</script>
+</body>
+</html>
